@@ -1,10 +1,10 @@
 #include <Adafruit_Protomatter.h>
-#include <Fonts/FreeMonoBoldOblique24pt7b.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <NetworkClientSecure.h>
 #include <arduino-timer.h>
+#include <TJpg_Decoder.h>
 
 #include "app_secrets.h"
 
@@ -36,6 +36,7 @@ char refresh_body[214];
 
 /* Song state data */
 char song_name[128];
+uint8_t image_data[128*128];
 
 
 /* DigiCert root CA used by spotify. Valid until 2038 */
@@ -144,6 +145,86 @@ static bool refreshAuth(void *arg) {
 	return true;
 }
 
+/* Callback to draw decoded JPEG on screen */
+static bool matrixOutput(int16_t x, int16_t y, uint16_t w,
+			 uint16_t h, uint16_t* bitmap) {
+	if (y > matrix.height()) {
+		/* Stop further decoding */
+		return 0;
+	}
+
+	matrix.drawRGBBitmap(x, y, bitmap, w, h);
+
+	/* Continue decoding */
+	return 1;
+}
+
+/* Downloads and displays album art */
+static bool displayAlbumArt(const char *url) {
+	int ret;
+
+	Serial.printf("Downloading image from %s\r\n", url);
+
+	/* Create secure network connection */
+	NetworkClientSecure client;
+	client.setCACert(rootCACertificate);
+
+	/* Send HTTP GET request to read currently playing data */
+	HTTPClient https;
+	https.begin(client, url);
+	ret = https.GET();
+	if (ret < 0) {
+		Serial.printf("Error getting url: %d\r\n", ret);
+		/* Do reschedule this event, this could be a network error */
+		return true;
+	} else if (ret != 200) {
+		Serial.printf("Album art url returned error code: %d\r\n", ret);
+		/* Do reschedule this event, this could be an API error */
+		return true;
+	}
+	int len = https.getSize();
+	int img_size = len;
+	uint8_t *rptr = image_data;
+
+	if (img_size > sizeof(image_data)) {
+		Serial.printf("Error, album art JPEG size %d is too large\r\n", img_size);
+		/* We can continue running the song checking code */
+		return true;
+	}
+
+	NetworkClient *stream = https.getStreamPtr();
+	while (https.connected() && (len > 0 || len == -1)) {
+		/* Read bytes into the image array */
+		size_t size = stream->available();
+
+		if (size) {
+			/* Read up to 1024 byte chunk */
+			if (size > 1024) {
+				size = 1024;
+			}
+			int c = stream->readBytes(rptr, size);
+
+			if (len > 0) {
+				len -= c;
+			}
+			rptr += c;
+		}
+		delay(1);
+	}
+	Serial.printf("Downloaded album art, size %d\r\n", img_size);
+
+	uint16_t w, h;
+	JRESULT rc = TJpgDec.getJpgSize(&w, &h, image_data, img_size);
+	if (rc != JDR_OK) {
+		Serial.printf("Failed to decode JPG: %d\r\n", rc);
+		return true;
+	}
+	Serial.printf("Displaying art with W=%d, H=%d\r\n", w, h);
+	TJpgDec.drawJpg(0, 0, image_data, img_size);
+
+	return true;
+}
+
 /* Requests song data from Spotify API */
 static bool requestSong(void *arg) {
 	int ret;
@@ -172,7 +253,9 @@ static bool requestSong(void *arg) {
 		/* Do reschedule this event, this could be an API error */
 		return true;
 	}
+
 	String payload = https.getString();
+	https.end();
 	JsonDocument response;
 	DeserializationError error = deserializeJson(response, payload.c_str());
 	if (error) {
@@ -191,8 +274,31 @@ static bool requestSong(void *arg) {
 
 	Serial.printf("Song name: %s\r\n", song_name);
 	matrix.fillScreen(0);
-	matrix.setCursor(0, 0);
-	matrix.println(song_name);
+	/* Print to left side */
+	matrix.setCursor((WIDTH/2 + 1), 0);
+	for (int i = 0; i < strlen(song_name); i++) {
+		matrix.write(song_name[i]);
+		if (matrix.getCursorX() == 0) {
+			/* Push cursor to middle of screen */
+			matrix.setCursor((WIDTH/2) + 1, matrix.getCursorY());
+		}
+	}
+	/*
+	 * Now, attempt to download the album art. We use the last element
+	 * in the array, since that seems to have the smallest dimensions
+	 */
+	int img_idx = response["item"]["album"]["images"].size() - 1;
+	JsonObject image = response["item"]["album"]["images"][img_idx];
+	int img_size = image["height"].as<int>() * image["width"].as<int>();
+
+	if (img_size > sizeof(image_data)) {
+		Serial.printf("Skipping image download, size of %d is too large\r\n", img_size);
+		return true;
+	}
+
+	if (!displayAlbumArt(image["url"])) {
+		return false;
+	}
 
 	matrix.show(); /* Copy data to matrix buffers */
 	return true;
@@ -224,6 +330,9 @@ void setup(void) {
 	Serial.println("WiFi connected");
 	Serial.println("IP address: ");
 	Serial.println(WiFi.localIP());
+
+	TJpgDec.setJpgScale(2);
+	TJpgDec.setCallback(matrixOutput);
 
 	ProtomatterStatus status = matrix.begin();
 	Serial.printf("Protomatter begin() status: %d\r\n", status);
