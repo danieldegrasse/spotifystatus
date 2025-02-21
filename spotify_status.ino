@@ -34,6 +34,10 @@ const char token_refresh_url[] = "https://accounts.spotify.com/api/token";
 char auth_header[223];
 char refresh_body[214];
 
+/* Song state data */
+char song_name[128];
+
+
 /* DigiCert root CA used by spotify. Valid until 2038 */
 const char *rootCACertificate = R"string_literal(
 -----BEGIN CERTIFICATE-----
@@ -88,12 +92,8 @@ static bool refreshAuth(void *arg) {
 	/* Invalidate old auth header */
 	memset(auth_header, 0, sizeof(auth_header));
 	/* Create secure network connection */
-	NetworkClientSecure *client = new NetworkClientSecure;
-	if (!client) {
-		Serial.println("Error, could not create network client");
-		return false;
-	}
-	client->setCACert(rootCACertificate);
+	NetworkClientSecure client;
+	client.setCACert(rootCACertificate);
 
 	/*
 	 * Now, send HTTP POST request to refresh the auth token- this
@@ -101,7 +101,7 @@ static bool refreshAuth(void *arg) {
 	 * https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens
 	 */
 	HTTPClient https;
-	https.begin(*client, token_refresh_url);
+	https.begin(client, token_refresh_url);
 	/* Add content-type and authorization header */
 	https.addHeader("Content-Type", "application/x-www-form-urlencoded");
 	https.addHeader("Authorization", SPOTIFY_AUTH_SECRET);
@@ -154,16 +154,12 @@ static bool requestSong(void *arg) {
 	}
 
 	/* Create secure network connection */
-	NetworkClientSecure *client = new NetworkClientSecure;
-	if (!client) {
-		Serial.println("Error, could not create network client");
-		return false;
-	}
-	client->setCACert(rootCACertificate);
+	NetworkClientSecure client;
+	client.setCACert(rootCACertificate);
 
 	/* Send HTTP GET request to read currently playing data */
 	HTTPClient https;
-	https.begin(*client, now_playing_url);
+	https.begin(client, now_playing_url);
 	https.addHeader("Authorization", auth_header);
 	ret = https.GET();
 	if (ret < 0) {
@@ -185,13 +181,28 @@ static bool requestSong(void *arg) {
 		return false;
 	}
 
-	const char *song_name = response["item"]["name"];
+	if (strncmp(song_name, response["item"]["name"], sizeof(song_name)) == 0) {
+		Serial.println("Song is unchanged");
+		/* Check again in a bit */
+		return true;
+	}
+
+	strlcpy(song_name, response["item"]["name"], sizeof(song_name));
 
 	Serial.printf("Song name: %s\r\n", song_name);
 	matrix.fillScreen(0);
 	matrix.setCursor(0, 0);
 	matrix.println(song_name);
+
 	matrix.show(); /* Copy data to matrix buffers */
+	return true;
+}
+
+static bool printStats(void *arg) {
+#if defined(ARDUINO_ADAFRUIT_MATRIXPORTAL_ESP32S3)
+	/* Print free memory */
+	Serial.printf("Free memory: %db\r\n", esp_get_free_heap_size());
+#endif
 	return true;
 }
 
@@ -237,6 +248,8 @@ void setup(void) {
 	timer.every(50 * 60 * 1000, refreshAuth);
 	/* Request song data every 10 seconds */
 	timer.every(10000, requestSong);
+	/* Dump system stats to serial every 20 seconds */
+	timer.every(20000, printStats);
 }
 
 /* Main loop- runs continuously */
