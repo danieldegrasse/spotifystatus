@@ -121,7 +121,9 @@ static bool refreshAuth(void *arg) {
 		return true;
 	} else if (ret != 200) {
 		Serial.printf("Refresh API returned error code: %d\r\n", ret);
-		Serial.println(https.getString());
+		if (https.getSize() > 0) {
+			Serial.println(https.getString());
+		}
 		/* Do reschedule this event, this could be an API error */
 		return true;
 	}
@@ -249,7 +251,9 @@ static bool requestSong(void *arg) {
 		return true;
 	} else if (ret != 200) {
 		Serial.printf("Now playing API returned error code: %d\r\n", ret);
-		Serial.println(https.getString());
+		if (https.getSize() > 0) {
+			Serial.println(https.getString());
+		}
 		/* Do reschedule this event, this could be an API error */
 		return true;
 	}
