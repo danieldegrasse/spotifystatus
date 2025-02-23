@@ -37,6 +37,10 @@ char refresh_body[214];
 /* Song state data */
 char song_name[128];
 uint8_t image_data[128*128];
+/* Elapsed song time in ms */
+uint32_t t_elapsed;
+/* Total song duration in ms */
+uint32_t t_duration;
 
 
 /* DigiCert root CA used by spotify. Valid until 2038 */
@@ -293,6 +297,10 @@ static bool requestSong(void *arg) {
 		return false;
 	}
 
+	/* Set song duration data */
+	t_elapsed = response["progress_ms"];
+	t_duration = response["item"]["duration_ms"];
+
 	Serial.printf("Song name: %s\r\n", song_name);
 	/* Print over the album art */
 	matrix.setCursor(1, 1);
@@ -307,6 +315,33 @@ static bool printStats(void *arg) {
 	/* Print free memory */
 	Serial.printf("Free memory: %db\r\n", esp_get_free_heap_size());
 #endif
+	return true;
+}
+
+static bool updateSongElapsed(void *arg) {
+	uint32_t elapsed_cnt;
+	int x_off;
+
+	/* Calculate elapsed and remaining pixel counts */
+	if ((t_elapsed > t_duration) || (t_duration == 0)) {
+		/*
+		 * Song should be over soon, or no song is playing.
+		 * no need to increment more.
+		 */
+		return true;
+	}
+	t_elapsed += 1000;
+	elapsed_cnt = (WIDTH * t_elapsed) / t_duration;
+	Serial.printf("Song is %d/%d blocks completed\r\n", elapsed_cnt, WIDTH);
+	/* Update song elapsed duration display */
+	for (x_off = 0; x_off < elapsed_cnt; x_off++) {
+		matrix.writePixel(x_off, HEIGHT - 1, 0xFFFF);
+	}
+	for (; x_off < WIDTH; x_off++) {
+		matrix.writePixel(x_off, HEIGHT - 1, 0x0);
+	}
+	matrix.show();
+
 	return true;
 }
 
@@ -356,6 +391,8 @@ void setup(void) {
 	timer.every(50 * 60 * 1000, refreshAuth);
 	/* Request song data every 10 seconds */
 	timer.every(10000, requestSong);
+	/* Update song progress every second */
+	timer.every(1000, updateSongElapsed);
 	/* Dump system stats to serial every 20 seconds */
 	timer.every(20000, printStats);
 }
