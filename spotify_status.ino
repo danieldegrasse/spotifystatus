@@ -21,8 +21,8 @@ uint8_t oePin      = 14;
 #define NUM_ADDR_PINS 4
 
 Adafruit_Protomatter matrix(
-  WIDTH, 4, 1, rgbPins, NUM_ADDR_PINS, addrPins,
-  clockPin, latchPin, oePin, true);
+  WIDTH, 6, 1, rgbPins, NUM_ADDR_PINS, addrPins,
+  clockPin, latchPin, oePin, false);
 
 /* Wireless configuration */
 const char ssid[] = WIFI_SSID;
