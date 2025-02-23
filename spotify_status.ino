@@ -253,6 +253,15 @@ static bool requestSong(void *arg) {
 		Serial.printf("Error getting url: %d\r\n", ret);
 		/* Do reschedule this event, this could be a network error */
 		return true;
+	} else if (ret == 204) {
+		Serial.println("No music is playing...");
+		t_duration = 0;
+		t_elapsed = 0;
+		/* Clear screen */
+		matrix.fillScreen(0);
+		matrix.show();
+		/* Do reschedule this event, this could be an API error */
+		return true;
 	} else if (ret != 200) {
 		Serial.printf("Now playing API returned error code: %d\r\n", ret);
 		if (https.getSize() > 0) {
