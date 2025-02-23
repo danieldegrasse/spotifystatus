@@ -22,7 +22,7 @@ uint8_t oePin      = 14;
 
 Adafruit_Protomatter matrix(
   WIDTH, 6, 1, rgbPins, NUM_ADDR_PINS, addrPins,
-  clockPin, latchPin, oePin, false);
+  clockPin, latchPin, oePin, true);
 
 /* Wireless configuration */
 const char ssid[] = WIFI_SSID;
@@ -150,9 +150,9 @@ static bool refreshAuth(void *arg) {
 /* Callback to draw decoded JPEG on screen */
 static bool matrixOutput(int16_t x, int16_t y, uint16_t w,
 			 uint16_t h, uint16_t* bitmap) {
-	if (y > matrix.height()) {
-		/* Stop further decoding */
-		return 0;
+	if ((y + h) >= matrix.height()) {
+		/* Clip the height of the bitmap */
+		h = matrix.height() - y;
 	}
 
 	matrix.drawRGBBitmap(x, y, bitmap, w, h);
@@ -276,17 +276,6 @@ static bool requestSong(void *arg) {
 
 	strlcpy(song_name, response["item"]["name"], sizeof(song_name));
 
-	Serial.printf("Song name: %s\r\n", song_name);
-	matrix.fillScreen(0);
-	/* Print to left side */
-	matrix.setCursor((WIDTH/2 + 1), 0);
-	for (int i = 0; i < strlen(song_name); i++) {
-		matrix.write(song_name[i]);
-		if (matrix.getCursorX() == 0) {
-			/* Push cursor to middle of screen */
-			matrix.setCursor((WIDTH/2) + 1, matrix.getCursorY());
-		}
-	}
 	/*
 	 * Now, attempt to download the album art. We use the last element
 	 * in the array, since that seems to have the smallest dimensions
@@ -303,6 +292,11 @@ static bool requestSong(void *arg) {
 	if (!displayAlbumArt(image["url"])) {
 		return false;
 	}
+
+	Serial.printf("Song name: %s\r\n", song_name);
+	/* Print over the album art */
+	matrix.setCursor(1, 1);
+	matrix.println(song_name);
 
 	matrix.show(); /* Copy data to matrix buffers */
 	return true;
@@ -335,12 +329,13 @@ void setup(void) {
 	Serial.println("IP address: ");
 	Serial.println(WiFi.localIP());
 
-	TJpgDec.setJpgScale(2);
+	TJpgDec.setJpgScale(1);
 	TJpgDec.setCallback(matrixOutput);
 
 	ProtomatterStatus status = matrix.begin();
 	Serial.printf("Protomatter begin() status: %d\r\n", status);
 	matrix.fillScreen(0);
+	matrix.setTextColor(0x0);
 	matrix.show(); /* Show initial matrix data */
 
 	/* Run all periodic tasks at boot */
