@@ -42,6 +42,12 @@ uint32_t t_elapsed;
 /* Total song duration in ms */
 uint32_t t_duration;
 
+enum audio_state {
+	AUDIO_STOPPED,
+	AUDIO_PAUSED,
+	AUDIO_PLAYING
+} audio_state = AUDIO_STOPPED;
+
 
 /* DigiCert root CA used by spotify. Valid until 2038 */
 const char *rootCACertificate = R"string_literal(
@@ -255,12 +261,8 @@ static bool requestSong(void *arg) {
 		return true;
 	} else if (ret == 204) {
 		Serial.println("No music is playing...");
-		t_duration = 0;
-		t_elapsed = 0;
-		/* Clear screen */
-		matrix.fillScreen(0);
-		matrix.show();
-		/* Do reschedule this event, this could be an API error */
+		audio_state = AUDIO_STOPPED;
+		/* Do reschedule this event, we need to check if music starts */
 		return true;
 	} else if (ret != 200) {
 		Serial.printf("Now playing API returned error code: %d\r\n", ret);
@@ -280,6 +282,7 @@ static bool requestSong(void *arg) {
 		Serial.println(error.f_str());
 		return false;
 	}
+	audio_state = response["is_playing"].as<bool>() ? AUDIO_PLAYING: AUDIO_PAUSED;
 
 	if (strncmp(song_name, response["item"]["name"], sizeof(song_name)) == 0) {
 		Serial.println("Song is unchanged");
@@ -331,8 +334,12 @@ static bool updateSongElapsed(void *arg) {
 	uint32_t elapsed_cnt;
 	int x_off;
 
+	if (audio_state != AUDIO_PLAYING) {
+		return true;
+	}
+
 	/* Calculate elapsed and remaining pixel counts */
-	if ((t_elapsed > t_duration) || (t_duration == 0)) {
+	if (t_elapsed > t_duration) {
 		/*
 		 * Song should be over soon, or no song is playing.
 		 * no need to increment more.
