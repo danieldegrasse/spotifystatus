@@ -307,6 +307,10 @@ static bool requestSong(void *arg) {
 		Serial.println(error.f_str());
 		return false;
 	}
+	if (response["currently_playing_type"] != "track") {
+		/* A podcast or similar is playing, bail out */
+		return true;
+	}
 	audio_state = response["is_playing"].as<bool>() ? AUDIO_PLAYING: AUDIO_PAUSED;
 	matrix.setTextColor(0x0);
 
