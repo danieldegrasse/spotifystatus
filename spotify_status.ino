@@ -247,14 +247,14 @@ static bool idleDisplay(void *arg) {
 
 	time_t rawtime;
 	struct tm * timeinfo;
-	char buffer[80];
+	char buffer[80] = {0};
 
 	time (&rawtime);
 	timeinfo = localtime(&rawtime);
 	strftime(buffer,80,"%k:%M",timeinfo);
 
 	/* Display the time when idle */
-	matrix.setCursor(10,15);
+	matrix.setCursor(15,10);
 	matrix.setTextColor(0xfb1f);
 	matrix.printf("%s", buffer);
 	matrix.show();
@@ -286,7 +286,9 @@ static bool requestSong(void *arg) {
 		return true;
 	} else if (ret == 204) {
 		Serial.println("No music is playing...");
+		memset(song_name, 0, sizeof(song_name));
 		audio_state = AUDIO_STOPPED;
+		matrix.fillScreen(0x0);
 		/* Do reschedule this event, we need to check if music starts */
 		return true;
 	} else if (ret != 200) {
