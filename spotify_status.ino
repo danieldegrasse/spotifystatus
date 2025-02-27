@@ -75,9 +75,11 @@ MrY=
 -----END CERTIFICATE-----
 )string_literal";
 
+const char *timezone = TIMEZONE;
+
 /* Sets clock- required for HTTPS certificate verification */
 static bool setClock(void *arg) {
-	configTime(0, 0, "pool.ntp.org");
+	configTzTime(timezone, "pool.ntp.org");
 
 	Serial.print(F("Waiting for NTP time sync: "));
 	time_t nowSecs = time(nullptr);
@@ -237,6 +239,29 @@ static bool displayAlbumArt(const char *url) {
 	return true;
 }
 
+/* Show idle background display for when music isn't playing */
+static bool idleDisplay(void *arg) {
+	if (audio_state != AUDIO_STOPPED) {
+		return true;
+	}
+
+	time_t rawtime;
+	struct tm * timeinfo;
+	char buffer[80];
+
+	time (&rawtime);
+	timeinfo = localtime(&rawtime);
+	strftime(buffer,80,"%k:%M",timeinfo);
+
+	/* Display the time when idle */
+	matrix.setCursor(10,15);
+	matrix.setTextColor(0xfb1f);
+	matrix.printf("%s", buffer);
+	matrix.show();
+	return true;
+}
+
+
 /* Requests song data from Spotify API */
 static bool requestSong(void *arg) {
 	int ret;
@@ -283,6 +308,7 @@ static bool requestSong(void *arg) {
 		return false;
 	}
 	audio_state = response["is_playing"].as<bool>() ? AUDIO_PLAYING: AUDIO_PAUSED;
+	matrix.setTextColor(0x0);
 
 	if (strncmp(song_name, response["item"]["name"], sizeof(song_name)) == 0) {
 		Serial.println("Song is unchanged");
@@ -399,6 +425,9 @@ void setup(void) {
 	if (!requestSong(NULL)) {
 		return;
 	}
+	if(!idleDisplay(NULL)) {
+		return;
+	}
 
 	/* Schedule periodic tasks */
 	/* Resync NTP time once daily */
@@ -411,6 +440,8 @@ void setup(void) {
 	timer.every(1000, updateSongElapsed);
 	/* Dump system stats to serial every 20 seconds */
 	timer.every(20000, printStats);
+	/* Run idle display every 10 seconds */
+	timer.every(10000, idleDisplay);
 }
 
 /* Main loop- runs continuously */
