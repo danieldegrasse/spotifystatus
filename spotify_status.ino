@@ -31,7 +31,7 @@ const char psk[] = WIFI_PASSPHRASE;
 /* HTTPS constants */
 const char now_playing_url[] = "https://api.spotify.com/v1/me/player/currently-playing";
 const char token_refresh_url[] = "https://accounts.spotify.com/api/token";
-char auth_header[223];
+char auth_header[512];
 char refresh_body[214];
 
 /* Song state data */
