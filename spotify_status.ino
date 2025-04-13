@@ -418,6 +418,7 @@ void setup(void) {
 	ProtomatterStatus status = matrix.begin();
 	Serial.printf("Protomatter begin() status: %d\r\n", status);
 	matrix.fillScreen(0);
+	matrix.setRotation(2);
 	matrix.setTextColor(0x0);
 	matrix.show(); /* Show initial matrix data */
 
