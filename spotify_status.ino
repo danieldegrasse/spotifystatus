@@ -62,8 +62,8 @@ enum audio_state {
 } audio_state = AUDIO_STOPPED;
 
 
-/* DigiCert root CA used by spotify. Valid until 2038 */
-const char *rootCACertificate = R"string_literal(
+/* DigiCert root CA used by spotify API. Valid until 2038 */
+const char *apiCACertificate = R"string_literal(
 -----BEGIN CERTIFICATE-----
 MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
 MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
@@ -85,6 +85,25 @@ Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
 8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
 pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
 MrY=
+-----END CERTIFICATE-----
+)string_literal";
+
+/* DigiCert root CA used by album art download. Valid until 2038 */
+const char *albumCACertificate = R"string_literal(
+-----BEGIN CERTIFICATE-----
+MIICPzCCAcWgAwIBAgIQBVVWvPJepDU1w6QP1atFcjAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVTMRUw
+EwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20x
+IDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEczMHYwEAYHKoZIzj0CAQYF
+K4EEACIDYgAE3afZu4q4C/sLfyHS8L6+c/MzXRq8NOrexpu80JX28MzQC7phW1FG
+fp4tn+6OYwwX7Adw9c+ELkCDnOg/QW07rdOkFFk2eJ0DQ+4QE2xy3q6Ip6FrtUPO
+Z9wj/wMco+I+o0IwQDAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAd
+BgNVHQ4EFgQUs9tIpPmhxdiuNkHMEWNpYim8S8YwCgYIKoZIzj0EAwMDaAAwZQIx
+AK288mw/EkrRLTnDCgmXc/SINoyIJ7vmiI1Qhadj+Z4y3maTD/HMsQmP3Wyr+mt/
+oAIwOWZbwmSNuJ5Q3KjVSaLtx9zRSX8XAbjIho9OjIgrqJqpisXRAL34VOKa5Vt8
+sycX
 -----END CERTIFICATE-----
 )string_literal";
 
@@ -119,7 +138,7 @@ static bool refreshAuth(void *arg) {
 	memset(auth_header, 0, sizeof(auth_header));
 	/* Create secure network connection */
 	NetworkClientSecure client;
-	client.setCACert(rootCACertificate);
+	client.setCACert(apiCACertificate);
 
 	/*
 	 * Now, send HTTP POST request to refresh the auth token- this
@@ -194,7 +213,7 @@ static bool displayAlbumArt(const char *url) {
 
 	/* Create secure network connection */
 	NetworkClientSecure client;
-	client.setCACert(rootCACertificate);
+	client.setCACert(albumCACertificate);
 
 	/* Send HTTP GET request to read currently playing data */
 	HTTPClient https;
@@ -286,7 +305,7 @@ static bool requestSong(void *arg) {
 
 	/* Create secure network connection */
 	NetworkClientSecure client;
-	client.setCACert(rootCACertificate);
+	client.setCACert(apiCACertificate);
 
 	/* Send HTTP GET request to read currently playing data */
 	HTTPClient https;
